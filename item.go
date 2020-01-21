@@ -1,6 +1,7 @@
 package onedrive
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -72,9 +73,10 @@ type Item struct {
 	Location             *LocationFacet `json:"location"`
 	Deleted              *DeletedFacet  `json:"deleted"`
 	// Instance attributes
-	ConflictBehaviour string `json:"@name.conflictBehavior"`
-	DownloadURL       string `json:"@content.downloadUrl"`
-	SourceURL         string `json:"@content.sourceUrl"`
+	ConflictBehaviour  string `json:"@name.conflictBehavior"`
+	ContentDownloadURL string `json:"@content.downloadUrl"`
+	GraphDownloadURL   string `json:"@microsoft.graph.downloadUrl"`
+	SourceURL          string `json:"@content.sourceUrl"`
 	// Relationships
 	Content    []byte        `json:"content"`
 	Children   []*Item       `json:"children"`
@@ -93,14 +95,14 @@ func itemURIFromID(itemID string) string {
 }
 
 // Get returns an item with the specified ID.
-func (is *ItemService) Get(itemID string) (*Item, *http.Response, error) {
+func (is *ItemService) Get(ctx context.Context, itemID string) (*Item, *http.Response, error) {
 	req, err := is.newRequest("GET", itemURIFromID(itemID), nil, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	item := new(Item)
-	resp, err := is.do(req, item)
+	resp, err := is.do(req.WithContext(ctx), item)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -110,12 +112,12 @@ func (is *ItemService) Get(itemID string) (*Item, *http.Response, error) {
 
 // GetDefaultDriveRootFolder is a convenience function to return the root folder
 // of the users default Drive
-func (is *ItemService) GetDefaultDriveRootFolder() (*Item, *http.Response, error) {
-	return is.Get("root")
+func (is *ItemService) GetDefaultDriveRootFolder(ctx context.Context) (*Item, *http.Response, error) {
+	return is.Get(ctx, "root")
 }
 
 // ListChildren returns a collection of all the Items under an Item
-func (is *ItemService) ListChildren(itemID string) (*Items, *http.Response, error) {
+func (is *ItemService) ListChildren(ctx context.Context, itemID string) (*Items, *http.Response, error) {
 	reqURI := fmt.Sprintf("/drive/items/%s/children", itemID)
 	req, err := is.newRequest("GET", reqURI, nil, nil)
 	if err != nil {
@@ -123,7 +125,7 @@ func (is *ItemService) ListChildren(itemID string) (*Items, *http.Response, erro
 	}
 
 	items := new(Items)
-	resp, err := is.do(req, items)
+	resp, err := is.do(req.WithContext(ctx), items)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -137,7 +139,7 @@ type newFolder struct {
 }
 
 // CreateFolder creates a new folder within the parent.
-func (is *ItemService) CreateFolder(parentID, folderName string) (*Item, *http.Response, error) {
+func (is *ItemService) CreateFolder(ctx context.Context, parentID, folderName string) (*Item, *http.Response, error) {
 	folder := newFolder{
 		Name:   folderName,
 		Folder: new(FolderFacet),
@@ -150,7 +152,7 @@ func (is *ItemService) CreateFolder(parentID, folderName string) (*Item, *http.R
 	}
 
 	item := new(Item)
-	resp, err := is.do(req, item)
+	resp, err := is.do(req.WithContext(ctx), item)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -164,9 +166,9 @@ type newWebUpload struct {
 	File      *FileFacet `json:"file"`
 }
 
-// Move changes the parent folder for a OneDrive Item resource.
-// See: http://onedrive.github.io/items/move.htm
-func (is ItemService) Update(item *Item, ifMatch bool) (*Item, *http.Response, error) {
+// Update updates the metadata for a OneDrive Item resource.
+// See: http://onedrive.github.io/items/update.htm
+func (is ItemService) Update(ctx context.Context, item *Item, ifMatch bool) (*Item, *http.Response, error) {
 	requestHeaders := make(map[string]string)
 	if ifMatch {
 		requestHeaders["if-match"] = item.ETag
@@ -178,7 +180,7 @@ func (is ItemService) Update(item *Item, ifMatch bool) (*Item, *http.Response, e
 		return nil, nil, err
 	}
 
-	resp, err := is.do(req, item)
+	resp, err := is.do(req.WithContext(ctx), item)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -190,7 +192,7 @@ func (is ItemService) Update(item *Item, ifMatch bool) (*Item, *http.Response, e
 // using this method will move the items to the Recycle Bin, instead of
 // permanently deleting them.
 // See: http://onedrive.github.io/items/delete.htm
-func (is *ItemService) Delete(itemID, eTag string) (bool, *http.Response, error) {
+func (is *ItemService) Delete(ctx context.Context, itemID, eTag string) (bool, *http.Response, error) {
 	requestHeaders := make(map[string]string)
 	if eTag != "" {
 		requestHeaders["if-match"] = eTag
@@ -202,7 +204,7 @@ func (is *ItemService) Delete(itemID, eTag string) (bool, *http.Response, error)
 		return false, nil, err
 	}
 
-	resp, err := is.do(req, nil)
+	resp, err := is.do(req.WithContext(ctx), nil)
 	if err != nil {
 		return false, resp, err
 	}
@@ -212,7 +214,7 @@ func (is *ItemService) Delete(itemID, eTag string) (bool, *http.Response, error)
 
 // Move changes the parent folder for a OneDrive Item resource.
 // See: http://onedrive.github.io/items/move.htm
-func (is ItemService) Move(itemID, parentReference ItemReference) (*Item, *http.Response, error) {
+func (is ItemService) Move(ctx context.Context, itemID, parentReference ItemReference) (*Item, *http.Response, error) {
 	path := fmt.Sprintf("/drive/items/%s", itemID)
 	req, err := is.newRequest("PATCH", path, nil, parentReference)
 	if err != nil {
@@ -220,7 +222,7 @@ func (is ItemService) Move(itemID, parentReference ItemReference) (*Item, *http.
 	}
 
 	item := new(Item)
-	resp, err := is.do(req, item)
+	resp, err := is.do(req.WithContext(ctx), item)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -228,9 +230,9 @@ func (is ItemService) Move(itemID, parentReference ItemReference) (*Item, *http.
 	return item, resp, nil
 }
 
-// Move changes the parent folder for a OneDrive Item resource.
-// See: http://onedrive.github.io/items/move.htm
-func (is ItemService) Copy(itemID, name string, parentReference ItemReference) (*Item, *http.Response, error) {
+// Copy creates a copy of a OneDrive Item resource (including children) under a new parent item.
+// See: http://onedrive.github.io/items/copy.htm
+func (is ItemService) Copy(ctx context.Context, itemID, name string, parentReference ItemReference) (*Item, *http.Response, error) {
 	copyAction := struct {
 		ParentReference *ItemReference `json:"parentReference"`
 		Name            string         `json:"name,omitempty"`
@@ -246,7 +248,7 @@ func (is ItemService) Copy(itemID, name string, parentReference ItemReference) (
 	}
 
 	item := new(Item)
-	resp, err := is.do(req, item)
+	resp, err := is.do(req.WithContext(ctx), item)
 	if err != nil {
 		return nil, resp, err
 	}

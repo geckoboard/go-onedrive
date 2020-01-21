@@ -6,9 +6,8 @@ import (
 )
 
 const (
-	version   = "0.1"
-	baseURL   = "https://api.onedrive.com/v1.0"
-	userAgent = "github.com/ggordan/go-onedrive; version " + version
+	version = "0.1"
+	baseURL = "https://api.onedrive.com/v1.0"
 )
 
 // OneDrive is the entry point for the client. It manages the communication with
@@ -25,13 +24,12 @@ type OneDrive struct {
 	throttle time.Time
 }
 
-// NewOneDrive returns a new OneDrive client to enable you to communicate with
+// New returns a new OneDrive client to enable you to communicate with
 // the API
-func NewOneDrive(c *http.Client, debug bool) *OneDrive {
+func New(c *http.Client) *OneDrive {
 	drive := OneDrive{
 		Client:   c,
 		BaseURL:  baseURL,
-		Debug:    debug,
 		throttle: time.Now(),
 	}
 	drive.Drives = &DriveService{&drive}
