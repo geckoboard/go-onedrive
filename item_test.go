@@ -1,6 +1,7 @@
 package onedrive
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -61,7 +62,7 @@ func newBaseItem(name, id string, size int64) *Item {
 		WebURL:               "https://onedrive.live.com/redir?page=self&resid=" + id,
 		CreatedDateTime:      parseTime("2015-03-08T03:26:46.443Z"),
 		LastModifiedDateTime: parseTime("2015-03-09T12:05:17.333Z"),
-		DownloadURL:          "https://download-url.com/someid",
+		ContentDownloadURL:   "https://download-url.com/someid",
 		CreatedBy: &IdentitySet{
 			User: userIdentity,
 		},
@@ -86,7 +87,7 @@ func newAudioItem(name, id string, size int64, audio *AudioFacet, file *FileFace
 
 func newFolderItem(name, id string, size int64, folder *FolderFacet) *Item {
 	item := newBaseItem(name, id, size)
-	item.DownloadURL = ""
+	item.ContentDownloadURL = ""
 	item.ParentReference = nil
 	item.Folder = folder
 	return item
@@ -179,7 +180,7 @@ func TestGetItem(t *testing.T) {
 	}
 	for i, tst := range tt {
 		mux.HandleFunc(itemURIFromID(tst.itemID), fileWrapperHandler(validFixtureFromItemID(tst.itemID), http.StatusOK))
-		item, _, err := oneDrive.Items.Get(tst.itemID)
+		item, _, err := oneDrive.Items.Get(context.Background(), tst.itemID)
 		if err != nil {
 			t.Fatalf("Problem fetching the default drive: %s", err.Error())
 		}
@@ -194,20 +195,18 @@ func TestGetItemInvalid(t *testing.T) {
 	defer teardown()
 
 	mux.HandleFunc(itemURIFromID("missing"), fileWrapperHandler("fixtures/request.invalid.notFound.json", http.StatusNotFound))
-	missingDrive, resp, err := oneDrive.Items.Get("missing")
+	missingDrive, resp, err := oneDrive.Items.Get(context.Background(), "missing")
 	if missingDrive != nil {
 		t.Fatalf("A drive was returned when an error was expected: %v", resp)
 	}
 
 	expectedErr := &Error{
-		innerError{
-			Code:    "itemNotFound",
-			Message: "Item Does Not Exist",
-			InnerError: &innerError{
-				Code: "itemDoesNotExist",
-				InnerError: &innerError{
-					Code: "folderDoesNotExist",
-				},
+		Code:    "itemNotFound",
+		Message: "Item Does Not Exist",
+		InnerError: &Error{
+			Code: "itemDoesNotExist",
+			InnerError: &Error{
+				Code: "folderDoesNotExist",
 			},
 		},
 	}
@@ -222,7 +221,7 @@ func TestGetDefaultDriveRootFolder(t *testing.T) {
 	defer teardown()
 
 	mux.HandleFunc("/drive/root", fileWrapperHandler("fixtures/drive.root.valid.json", http.StatusOK))
-	root, _, err := oneDrive.Items.GetDefaultDriveRootFolder()
+	root, _, err := oneDrive.Items.GetDefaultDriveRootFolder(context.Background())
 	if err != nil {
 		t.Fatalf("Problem fetching the root drive: %s", err.Error())
 	}
@@ -249,7 +248,7 @@ func TestListItemChildren(t *testing.T) {
 	defer teardown()
 
 	mux.HandleFunc("/drive/items/some-id/children", fileWrapperHandler("fixtures/item.children.valid.json", http.StatusOK))
-	items, _, err := oneDrive.Items.ListChildren("some-id")
+	items, _, err := oneDrive.Items.ListChildren(context.Background(), "some-id")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +270,7 @@ func TestListItemChildrenInvalid(t *testing.T) {
 	setup()
 	defer teardown()
 	mux.HandleFunc("/drive/items/some-id/children", fileWrapperHandler("fixtures/item.children.invalid.json", http.StatusOK))
-	_, resp, err := oneDrive.Items.ListChildren("some-id")
+	_, resp, err := oneDrive.Items.ListChildren(context.Background(), "some-id")
 	if err == nil {
 		t.Fatalf("Expected error, got : %v", resp)
 	}
@@ -283,9 +282,9 @@ func TestCreateFolder(t *testing.T) {
 
 	folderItem := newFolderItem("root", "0123456789abc!101", 10655823, newFolderFacet(3))
 	mux.HandleFunc("/drive/items/0123456789abc!104/children/root", fileWrapperHandler("fixtures/item.folder.valid.json", http.StatusOK))
-	item, _, err := oneDrive.Items.CreateFolder("0123456789abc!104", "root")
+	item, _, err := oneDrive.Items.CreateFolder(context.Background(), "0123456789abc!104", "root")
 	if err != nil {
-		t.Fatalf("An error occured while attempting to create a folder: %s", err)
+		t.Fatalf("An error occurred while attempting to create a folder: %s", err)
 	}
 
 	if got, want := item, folderItem; reflect.DeepEqual(got, want) {

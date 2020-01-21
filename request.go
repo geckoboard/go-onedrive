@@ -3,7 +3,6 @@ package onedrive
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,7 +37,7 @@ func calculateThrottle(currentTime time.Time, retryAfter string) (time.Time, err
 
 func (od *OneDrive) newRequest(method, uri string, requestHeaders map[string]string, body interface{}) (*http.Request, error) {
 	if !time.Now().After(od.throttle) {
-		return nil, errors.New(fmt.Sprintf("you are making too many requests. Please wait: %s", od.throttle.Sub(time.Now())))
+		return nil, fmt.Errorf("you are making too many requests. Please wait: %s", od.throttle.Sub(time.Now()))
 	}
 
 	requestBody, err := createRequestBody(body)
@@ -58,7 +57,6 @@ func (od *OneDrive) newRequest(method, uri string, requestHeaders map[string]str
 
 	req.Header.Add("Accept", acceptHeader)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("User-Agent", userAgent)
 
 	if requestHeaders != nil {
 		for header, value := range requestHeaders {
@@ -84,11 +82,13 @@ func (od *OneDrive) do(req *http.Request, decodeInto interface{}) (*http.Respons
 			}
 			od.throttleRequest(retryAfter)
 		}
-		newErr := new(Error)
-		if err := json.NewDecoder(resp.Body).Decode(newErr); err != nil {
+		var errResponse struct {
+			Error Error `json:"error"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&errResponse); err != nil {
 			return resp, err
 		}
-		return resp, newErr
+		return resp, &errResponse.Error
 	}
 
 	if decodeInto != nil {

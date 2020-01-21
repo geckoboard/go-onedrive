@@ -1,6 +1,7 @@
 package onedrive
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -101,12 +102,12 @@ func TestThrottledRequest(t *testing.T) {
 		w.Write(b)
 	})
 
-	_, _, err := oneDrive.Drives.GetDefault()
+	_, _, err := oneDrive.Drives.GetDefault(context.Background())
 	if err == nil {
-		t.Fatal("Expected tooManyRequests error but none occured")
+		t.Fatal("Expected tooManyRequests error but none occurred")
 	}
 
-	drive, _, err := oneDrive.Drives.GetDefault()
+	drive, _, err := oneDrive.Drives.GetDefault(context.Background())
 	if drive != nil {
 		t.Fatalf("Expected no drive to be returned, got %v", *drive)
 	}

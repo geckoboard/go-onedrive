@@ -15,7 +15,7 @@ var (
 func setup() {
 	mux = http.NewServeMux()
 	server = httptest.NewServer(mux)
-	oneDrive = NewOneDrive(http.DefaultClient, true)
+	oneDrive = New(http.DefaultClient)
 	oneDrive.BaseURL = server.URL
 }
 

@@ -1,6 +1,7 @@
 package onedrive
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -91,7 +92,7 @@ func TestGet(t *testing.T) {
 	}
 	for i, tst := range tt {
 		mux.HandleFunc(driveURIFromID(tst.driveID), fileWrapperHandler(validFixtureFromDriveID(tst.driveID), 200))
-		drive, _, err := oneDrive.Drives.Get(tst.driveID)
+		drive, _, err := oneDrive.Drives.Get(context.Background(), tst.driveID)
 		if err != nil {
 			t.Fatalf("Problem fetching the default drive: %s", err.Error())
 		}
@@ -106,20 +107,18 @@ func TestGetMissing(t *testing.T) {
 	defer teardown()
 
 	mux.HandleFunc("/drives/missing-drive", fileWrapperHandler("fixtures/request.invalid.notFound.json", 404))
-	missingDrive, resp, err := oneDrive.Drives.Get("missing-drive")
+	missingDrive, resp, err := oneDrive.Drives.Get(context.Background(), "missing-drive")
 	if missingDrive != nil {
 		t.Fatalf("A drive was returned when an error was expected: %v", resp)
 	}
 
 	expectedErr := &Error{
-		innerError{
-			Code:    "itemNotFound",
-			Message: "Item Does Not Exist",
-			InnerError: &innerError{
-				Code: "itemDoesNotExist",
-				InnerError: &innerError{
-					Code: "folderDoesNotExist",
-				},
+		Code:    "itemNotFound",
+		Message: "Item Does Not Exist",
+		InnerError: &Error{
+			Code: "itemDoesNotExist",
+			InnerError: &Error{
+				Code: "folderDoesNotExist",
 			},
 		},
 	}
@@ -134,7 +133,7 @@ func TestGetMalformed(t *testing.T) {
 	defer teardown()
 
 	mux.HandleFunc("/drives/malformed-drive", fileWrapperHandler("fixtures/drive.invalid.malformed.json", 200))
-	_, _, err := oneDrive.Drives.Get("malformed-drive")
+	_, _, err := oneDrive.Drives.Get(context.Background(), "malformed-drive")
 	if err == nil {
 		t.Fatalf("Expected error, got: %v", err)
 	}
@@ -145,7 +144,7 @@ func TestGetDefault(t *testing.T) {
 	defer teardown()
 
 	mux.HandleFunc("/drive", fileWrapperHandler("fixtures/drive.valid.default.json", 200))
-	defaultDrive, _, err := oneDrive.Drives.GetDefault()
+	defaultDrive, _, err := oneDrive.Drives.GetDefault(context.Background())
 	if err != nil {
 		t.Fatalf("Problem fetching the default drive: %s", err.Error())
 	}
@@ -159,7 +158,7 @@ func TestListAllDrives(t *testing.T) {
 	defer teardown()
 
 	mux.HandleFunc("/drives", fileWrapperHandler("fixtures/drive.collection.valid.json", 200))
-	drives, _, err := oneDrive.Drives.ListAll()
+	drives, _, err := oneDrive.Drives.ListAll(context.Background())
 	if err != nil {
 		t.Fatalf("Problem fetching the drive list: %s", err.Error())
 	}
@@ -179,18 +178,16 @@ func TestListAllDrivesInvalid(t *testing.T) {
 	defer teardown()
 
 	mux.HandleFunc("/drives", fileWrapperHandler("fixtures/request.invalid.badArgument.json", 400))
-	_, resp, err := oneDrive.Drives.ListAll()
+	_, resp, err := oneDrive.Drives.ListAll(context.Background())
 	if err == nil {
 		t.Fatalf("Expected err, got : %v", resp)
 	}
 
 	expectedErr := &Error{
-		innerError{
-			Code:    "invalidArgument",
-			Message: "Bad Argument",
-			InnerError: &innerError{
-				Code: "badArgument",
-			},
+		Code:    "invalidArgument",
+		Message: "Bad Argument",
+		InnerError: &Error{
+			Code: "badArgument",
 		},
 	}
 
@@ -222,7 +219,7 @@ func TestListDriveChildren(t *testing.T) {
 	}
 
 	mux.HandleFunc(driveChildrenURIFromID(""), fileWrapperHandler("fixtures/drive.children.valid.json", 200))
-	items, _, err := oneDrive.Drives.ListChildren("")
+	items, _, err := oneDrive.Drives.ListChildren(context.Background(), "", "")
 	if err != nil {
 		t.Fatalf("Problem fetching the drive children: %s", err.Error())
 	}
@@ -241,7 +238,7 @@ func TestListDriveChildrenInvalid(t *testing.T) {
 	defer teardown()
 
 	mux.HandleFunc(driveChildrenURIFromID(""), fileWrapperHandler("fixtures/drive.children.invalid.json", 200))
-	_, resp, err := oneDrive.Drives.ListChildren("")
+	_, resp, err := oneDrive.Drives.ListChildren(context.Background(), "", "")
 	if err == nil {
 		t.Fatalf("Expected error, got : %v", resp)
 	}

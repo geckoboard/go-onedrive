@@ -1,8 +1,10 @@
 package onedrive
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 )
 
 // DriveService manages the communication with Drive related API endpoints.
@@ -84,14 +86,14 @@ func driveChildrenURIFromID(driveID string) string {
 // Get returns a Drive for the authenticated user. If no driveID is provided
 // the users default Drive is returned. A user will always have at least one
 // Drive available -- the default Drive.
-func (ds *DriveService) Get(driveID string) (*Drive, *http.Response, error) {
+func (ds *DriveService) Get(ctx context.Context, driveID string) (*Drive, *http.Response, error) {
 	req, err := ds.newRequest("GET", driveURIFromID(driveID), nil, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	drive := new(Drive)
-	resp, err := ds.do(req, drive)
+	resp, err := ds.do(req.WithContext(ctx), drive)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -100,19 +102,19 @@ func (ds *DriveService) Get(driveID string) (*Drive, *http.Response, error) {
 }
 
 // GetDefault is a convenience function to return the users default Drive
-func (ds *DriveService) GetDefault() (*Drive, *http.Response, error) {
-	return ds.Get("")
+func (ds *DriveService) GetDefault(ctx context.Context) (*Drive, *http.Response, error) {
+	return ds.Get(ctx, "")
 }
 
 // ListAll returns all the Drives available to the authenticated user
-func (ds *DriveService) ListAll() (*Drives, *http.Response, error) {
+func (ds *DriveService) ListAll(ctx context.Context) (*Drives, *http.Response, error) {
 	req, err := ds.newRequest("GET", "/drives", nil, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	drives := new(Drives)
-	resp, err := ds.do(req, drives)
+	resp, err := ds.do(req.WithContext(ctx), drives)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -122,14 +124,41 @@ func (ds *DriveService) ListAll() (*Drives, *http.Response, error) {
 
 // ListChildren returns a collection of all the Items under the Drive root. If no
 // driveID is specified, the children from the root drive are retrieved.
-func (ds *DriveService) ListChildren(driveID string) (*Items, *http.Response, error) {
-	req, err := ds.newRequest("GET", driveChildrenURIFromID(driveID), nil, nil)
+func (ds *DriveService) ListChildren(ctx context.Context, driveID string, filter string) (*Items, *http.Response, error) {
+	var filterParam string
+	if filter != "" {
+		filterParam = "filter=" + url.QueryEscape(filter)
+	}
+
+	req, err := ds.newRequest("GET", driveChildrenURIFromID(driveID)+"?"+filterParam, nil, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	items := new(Items)
-	resp, err := ds.do(req, items)
+	resp, err := ds.do(req.WithContext(ctx), items)
+	if err != nil {
+		return nil, resp, err
+	}
+
+	return items, resp, nil
+}
+
+// Search the hierarchy of items for items matching a query
+func (ds *DriveService) Search(ctx context.Context, q string, filter string) (*Items, *http.Response, error) {
+	q = url.QueryEscape(q)
+
+	if filter != "" {
+		q = q + "&filter=" + url.QueryEscape(filter)
+	}
+
+	req, err := ds.newRequest("GET", "/drive/root/view.search?q="+q, nil, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	items := new(Items)
+	resp, err := ds.do(req.WithContext(ctx), items)
 	if err != nil {
 		return nil, resp, err
 	}

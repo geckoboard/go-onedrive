@@ -5,20 +5,19 @@ import "errors"
 // error types
 
 var (
+	// ErrFileTooLarge represents the error returned when the file is too large for upload
 	ErrFileTooLarge = errors.New("file is too large for simple upload")
 )
 
-type innerError struct {
-	Code       string      `json:"code"`
-	Message    string      `json:"message"`
-	InnerError *innerError `json:"innererror"`
-}
-
 // The Error type defines the basic structure of errors that are returned from
 // the OneDrive API.
-// See: http://onedrive.github.io/misc/errors.htm
+// Error messages can be nested recursively, with inner errors containing more
+// specific error codes
+// See: https://docs.microsoft.com/en-gb/onedrive/developer/rest-api/concepts/errors?view=odsp-graph-online
 type Error struct {
-	innerError `json:"error"`
+	Code       string `json:"code"`
+	Message    string `json:"message"`
+	InnerError *Error `json:"innererror"`
 }
 
 func (e Error) Error() string {
